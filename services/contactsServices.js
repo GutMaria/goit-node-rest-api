@@ -2,8 +2,13 @@ import fs from "fs/promises";
 import path from "path";
 import { nanoid } from "nanoid";
 
+// import Contact from "../models/Contact.js"
+
 const contactsPath = path.resolve("db", "contacts.json");
 
+// export const listContacts = () => Contact.find();
+
+// ----------------------- функції для роботи з файлом .json
 export async function listContacts() {
   const data = await fs.readFile(contactsPath);
   return JSON.parse(data);
