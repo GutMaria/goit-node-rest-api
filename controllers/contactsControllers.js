@@ -7,7 +7,19 @@ import {
 
 export const getAllContacts = async (req, res, next) => {
   try {
-    const result = await contactsService.listContacts();
+    const { _id: owner } = req.user;
+
+    const { page = 1, limit = 20, favorite } = req.query;
+
+    let filter = { owner };
+    let setting = { skip: (page - 1) * limit, limit: limit };
+
+    if (favorite !== undefined) {
+      filter.favorite = favorite === "true";
+    }
+
+    const result = await contactsService.listContacts(filter, setting);
+
     res.json(result);
   } catch (error) {
     next(error);
@@ -30,7 +42,6 @@ export const getOneContact = async (req, res, next) => {
 export const deleteContact = async (req, res, next) => {
   try {
     const { id } = req.params;
-    console.log("id:", id);
     const result = await contactsService.removeContact(id);
     if (!result) {
       throw HttpError(404, "Not found");
@@ -48,8 +59,8 @@ export const createContact = async (req, res, next) => {
       throw HttpError(400, error.message);
     }
 
-    // const { name, email, phone } = req.body;
-    const result = await contactsService.addContact(req.body);
+    const { _id: owner } = req.user;
+    const result = await contactsService.addContact({ ...req.body, owner });
     res.status(201).json(result);
   } catch (error) {
     next(error);

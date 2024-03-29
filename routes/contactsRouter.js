@@ -7,8 +7,11 @@ import {
   updateContact,
 } from "../controllers/contactsControllers.js";
 import isValidId from "../middlwares/isValidId.js";
+import autenticate from "../middlwares/authenticate.js";
 
 const contactsRouter = express.Router();
+// використовуємо мідлвару для перевірки валідності токену
+contactsRouter.use(autenticate);
 
 contactsRouter.get("/", getAllContacts);
 
