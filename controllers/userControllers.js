@@ -117,21 +117,23 @@ export const updateSubscription = async (req, res, next) => {
 
 export const updateAvatar = async (req, res, next) => {
   try {
-    console.log("req.file", req.file);
+    if (!req.file) {
+      throw HttpError(400, "The file is missing");
+    }
     const { path: oldPath, filename } = req.file;
+    const { _id } = req.user;
     // робимо обробку
     const image = await Jimp.read(oldPath);
     console.log("JIMP image");
     await image.resize(250, 250).quality(100).write(oldPath);
 
-    const newPath = path.join(avatarPath, filename);
+    const newFilename = `${_id}_${filename}`;
+    const newPath = path.join(avatarPath, newFilename);
     await fs.rename(oldPath, newPath);
-    const avatar = path.join("avatars", filename);
+    const avatarURL = path.join("avatars", newFilename);
 
-    const { _id } = req.user;
-
-    await usersServices.updateUser({ _id }, { avatarURL: avatar });
-    res.json({ avatarURL: avatar });
+    await usersServices.updateUser({ _id }, { avatarURL });
+    res.json({ avatarURL });
   } catch (error) {
     next(error);
   }
