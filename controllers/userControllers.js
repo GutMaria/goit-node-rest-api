@@ -4,8 +4,13 @@ import HttpError from "../helpers/HttpError.js";
 import * as usersServices from "../services/usersServices.js";
 import { typeSubscription } from "../constants/user-constants.js";
 import "dotenv/config.js";
+import gravatar from "gravatar";
+import Jimp from "jimp";
+import fs from "fs/promises";
+import path from "path";
 
 const { JWT_SECRET } = process.env;
+const avatarPath = path.resolve("public", "avatars");
 
 export const register = async (req, res, next) => {
   try {
@@ -16,14 +21,18 @@ export const register = async (req, res, next) => {
     }
 
     const hashPassword = await bcrypt.hash(password, 10);
+    // Додаємо аватар
+    const url = gravatar.url(email, { s: "200", r: "x", d: "robohash" });
     const newUser = await usersServices.register({
       ...req.body,
       password: hashPassword,
+      avatarURL: url,
     });
     res.status(201).json({
       user: {
         email: newUser.email,
         subscription: newUser.subscription,
+        avatarURL: newUser.avatarURL,
       },
     });
   } catch (error) {
@@ -82,6 +91,7 @@ export const logout = async (req, res, next) => {
     const { _id } = req.user;
     console.log("req.user", req.user);
     console.log("_id", _id);
+
     await usersServices.updateUser({ _id }, { token: "" });
     res.status(204).end();
   } catch (error) {
@@ -100,6 +110,30 @@ export const updateSubscription = async (req, res, next) => {
 
     await usersServices.updateUser({ _id }, { subscription });
     res.json({ message: "success" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateAvatar = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      throw HttpError(400, "The file is missing");
+    }
+    const { path: oldPath, filename } = req.file;
+    const { _id } = req.user;
+    // робимо обробку
+    const image = await Jimp.read(oldPath);
+    console.log("JIMP image");
+    await image.resize(250, 250).quality(100).write(oldPath);
+
+    const newFilename = `${_id}_${filename}`;
+    const newPath = path.join(avatarPath, newFilename);
+    await fs.rename(oldPath, newPath);
+    const avatarURL = path.join("avatars", newFilename);
+
+    await usersServices.updateUser({ _id }, { avatarURL });
+    res.json({ avatarURL });
   } catch (error) {
     next(error);
   }
