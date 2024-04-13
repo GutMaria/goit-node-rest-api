@@ -7,11 +7,13 @@ export const userRegisterSchema = Joi.object({
   subscription: Joi.string()
     .valid(...typeSubscription)
     .default("starter"),
-  // token: Joi.string().default(null),
 });
 
 export const userLoginSchema = Joi.object({
   password: Joi.string().min(6).required(),
   email: Joi.string().pattern(emailRegexp).required(),
-  // token: Joi.string().default(null),
+});
+
+export const userEmailSchema = Joi.object({
+  email: Joi.string().pattern(emailRegexp).required(),
 });

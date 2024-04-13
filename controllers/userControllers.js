@@ -8,8 +8,10 @@ import gravatar from "gravatar";
 import Jimp from "jimp";
 import fs from "fs/promises";
 import path from "path";
+import { nanoid } from "nanoid";
+import sendEmail from "../helpers/sendEmail.js";
 
-const { JWT_SECRET } = process.env;
+const { JWT_SECRET, PROJECT_URL } = process.env;
 const avatarPath = path.resolve("public", "avatars");
 
 export const register = async (req, res, next) => {
@@ -21,13 +23,26 @@ export const register = async (req, res, next) => {
     }
 
     const hashPassword = await bcrypt.hash(password, 10);
+    const verificationToken = nanoid();
     // Додаємо аватар
     const url = gravatar.url(email, { s: "200", r: "x", d: "robohash" });
     const newUser = await usersServices.register({
       ...req.body,
       password: hashPassword,
       avatarURL: url,
+      verificationToken,
     });
+
+    // Відправити email для верифікації
+    const verifyEmail = {
+      to: email,
+      subject: "Verify email",
+      html: `<a target='blank' href="${PROJECT_URL}/users/verify/${verificationToken}">Click verify email</a>`,
+    };
+    // Відправляємо email на підтвердження
+    await sendEmail(verifyEmail);
+    console.log("відправили email");
+
     res.status(201).json({
       user: {
         email: newUser.email,
@@ -40,6 +55,47 @@ export const register = async (req, res, next) => {
   }
 };
 
+export const verify = async (req, res, next) => {
+  try {
+    const { verificationToken } = req.params;
+    console.log("verificationToken", verificationToken);
+    const user = await usersServices.findUser({ verificationToken });
+    if (!user) {
+      throw HttpError(404, "User not found");
+    }
+    await usersServices.updateUser(
+      { _id: user._id },
+      { verify: true, verificationToken: null }
+    );
+    res.status(200).json({ message: "Verification successful" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resendVerify = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    const user = await usersServices.findUser({ email });
+    if (!user) {
+      throw HttpError(404, "User not found");
+    }
+    if (user.verify) {
+      throw HttpError(400, "Verification has already been passed");
+    }
+
+    const verifyEmail = {
+      to: email,
+      subject: "Verify email",
+      html: `<a target='blank' href="${PROJECT_URL}/users/verify/${user.verificationToken}">Click verify email</a>`,
+    };
+    await sendEmail(verifyEmail);
+    res.status(200).json({ message: "Verification email sent" });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
@@ -47,7 +103,10 @@ export const login = async (req, res, next) => {
     if (!user) {
       throw HttpError(401, "Email or password is wrong");
     }
-
+    //Якщо пошта не підтвердженна залогінитися неможна
+    if (!user.verify) {
+      throw HttpError(401, "Email not verify");
+    }
     const passwordCompare = await bcrypt.compare(password, user.password);
     if (!passwordCompare) {
       throw HttpError(401, "Email or password is wrong");
